@@ -3,8 +3,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from .auth import create_access_token, authenticate_user, get_password_hash, get_user
-from .models import User, Conversation
+from auth import create_access_token, authenticate_user, get_password_hash, get_user, secret_key, jwt, algorithm, JWTError
+from models import User, Conversation
+from summarizer import Summarizer
 
 app = FastAPI()
 security = HTTPBearer()
@@ -15,6 +16,16 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 Base.metadata.create_all(bind=engine)
+
+
+def generate_summary(text, num_sentences=3):
+    # Initialize the Summarizer
+    model = Summarizer()
+
+    # Generate the summary
+    summary = model(text, num_sentences=num_sentences)
+
+    return summary
 
 
 # Dependency for getting the current user based on the token
@@ -50,8 +61,9 @@ def get_user_conversations(current_user: User = Depends(get_current_user)):
 
 
 @app.post("/conversations")
-def create_user_conversation(text: str, summary: str, current_user: User = Depends(get_current_user)):
+def create_user_conversation(text: str, current_user: User = Depends(get_current_user)):
     session = SessionLocal()
+    summary = generate_summary(text)
     conversation = Conversation(text=text, summary=summary, user_id=current_user.id)
     session.add(conversation)
     session.commit()
